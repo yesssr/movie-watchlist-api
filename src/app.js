@@ -17,11 +17,26 @@ const app = express();
 
 // CORS configuration
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || "http://localhost:3000",
+  origin: [
+    process.env.FRONTEND_URL || "http://localhost:3000",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://localhost:3000",
+  ],
   credentials: true,
   optionsSuccessStatus: 200,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Requested-With",
+    "Accept",
+    "Origin",
+    "Cache-Control",
+    "Set-Cookie",
+  ],
+  exposedHeaders: ["Set-Cookie"],
+  preflightContinue: false,
 };
 
 // Middleware
