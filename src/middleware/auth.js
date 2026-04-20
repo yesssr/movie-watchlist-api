@@ -3,7 +3,6 @@ import User from "../models/User.js";
 
 const authenticateToken = async (req, res, next) => {
   try {
-    // Try to get token from cookie first, then fallback to Authorization header
     let token = req.cookies.accessToken;
 
     if (!token) {

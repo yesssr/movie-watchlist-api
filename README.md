@@ -34,56 +34,69 @@ A RESTful API backend for the Movie Watchlist application built with Node.js, Ex
 ## 📦 Installation
 
 1. **Clone the repository**
+
    ```bash
    git clone <repository-url>
    cd backend
    ```
 
 2. **Install dependencies**
+
    ```bash
    npm install
    ```
 
 3. **Environment Setup**
+
    ```bash
    cp .env.example .env
    ```
-   
+
    Update `.env` with your configuration:
+
    ```env
    # Database Configuration (Neon)
    DATABASE_URL=postgresql://username:password@host:5432/database?sslmode=require
-   
+
    # JWT Configuration
    JWT_SECRET=your_super_secret_jwt_key_here
    JWT_REFRESH_SECRET=your_super_secret_refresh_key_here
    JWT_EXPIRES_IN=1h
    JWT_REFRESH_EXPIRES_IN=7d
-   
+
    # Server Configuration
    PORT=5000
    NODE_ENV=development
-   
+
    # TMDB API Configuration (Optional)
    TMDB_API_KEY=your_tmdb_api_key_here
    TMDB_BASE_URL=https://api.themoviedb.org/3
    TMDB_IMAGE_BASE_URL=https://image.tmdb.org/t/p/w500
-   
+
    # CORS Configuration
    FRONTEND_URL=http://localhost:3000
    ```
 
+# Google OAuth Configuration
+
+GOOGLE_CLIENT_ID=your_google_oauth_client_id
+GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
+GOOGLE_CALLBACK_URL=http://localhost:5000/api/auth/google/callback
+
+````
+
 4. **Database Setup**
-   ```bash
-   # Run migrations
-   npx knex migrate:latest --knexfile src/knexfile.js
-   ```
+```bash
+# Run migrations
+npx knex migrate:latest --knexfile src/knexfile.js
+````
 
 5. **Start the server**
+
    ```bash
    # Development
    npm run dev
-   
+
    # Production
    npm start
    ```
@@ -92,33 +105,36 @@ A RESTful API backend for the Movie Watchlist application built with Node.js, Ex
 
 ### Authentication Routes (`/api/auth`)
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/register` | Register new user | ❌ |
-| POST | `/login` | Login user | ❌ |
-| POST | `/refresh` | Refresh access token | ❌ |
-| POST | `/logout` | Logout user | ❌ |
-| GET | `/profile` | Get user profile | ✅ |
-| PUT | `/profile` | Update user profile | ✅ |
-| PUT | `/change-password` | Change password | ✅ |
+| Method | Endpoint           | Description                   | Auth Required |
+| ------ | ------------------ | ----------------------------- | ------------- |
+| POST   | `/register`        | Register new user             | ❌            |
+| POST   | `/login`           | Login user                    | ❌            |
+| GET    | `/google`          | Redirect user to Google OAuth | ❌            |
+| GET    | `/google/callback` | Google OAuth callback handler | ❌            |
+| POST   | `/refresh`         | Refresh access token          | ❌            |
+| POST   | `/logout`          | Logout user                   | ❌            |
+| GET    | `/profile`         | Get user profile              | ✅            |
+| PUT    | `/profile`         | Update user profile           | ✅            |
+| PUT    | `/change-password` | Change password               | ✅            |
 
 ### Movie Routes (`/api/movies`)
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/` | Get user's movies | ✅ |
-| POST | `/` | Add new movie | ✅ |
-| GET | `/stats` | Get movie statistics | ✅ |
-| GET | `/genres` | Get user's genres | ✅ |
-| GET | `/search-tmdb?query=` | Search TMDB | ✅ |
-| GET | `/:id` | Get specific movie | ✅ |
-| PUT | `/:id` | Update movie | ✅ |
-| PUT | `/:id/refresh-poster` | Refresh movie poster | ✅ |
-| DELETE | `/:id` | Delete movie | ✅ |
+| Method | Endpoint              | Description          | Auth Required |
+| ------ | --------------------- | -------------------- | ------------- |
+| GET    | `/`                   | Get user's movies    | ✅            |
+| POST   | `/`                   | Add new movie        | ✅            |
+| GET    | `/stats`              | Get movie statistics | ✅            |
+| GET    | `/genres`             | Get user's genres    | ✅            |
+| GET    | `/search-tmdb?query=` | Search TMDB          | ✅            |
+| GET    | `/:id`                | Get specific movie   | ✅            |
+| PUT    | `/:id`                | Update movie         | ✅            |
+| PUT    | `/:id/refresh-poster` | Refresh movie poster | ✅            |
+| DELETE | `/:id`                | Delete movie         | ✅            |
 
 ## 📝 API Usage Examples
 
 ### Register User
+
 ```bash
 curl -X POST http://localhost:5000/api/auth/register \
   -H "Content-Type: application/json" \
@@ -130,6 +146,7 @@ curl -X POST http://localhost:5000/api/auth/register \
 ```
 
 ### Login User
+
 ```bash
 curl -X POST http://localhost:5000/api/auth/login \
   -H "Content-Type: application/json" \
@@ -140,6 +157,7 @@ curl -X POST http://localhost:5000/api/auth/login \
 ```
 
 ### Add Movie
+
 ```bash
 curl -X POST http://localhost:5000/api/movies \
   -H "Content-Type: application/json" \
@@ -154,12 +172,14 @@ curl -X POST http://localhost:5000/api/movies \
 ```
 
 ### Get Movies
+
 ```bash
 curl -X GET http://localhost:5000/api/movies \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
 ### Filter Movies by Status
+
 ```bash
 curl -X GET "http://localhost:5000/api/movies?status=watched" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
@@ -170,6 +190,7 @@ curl -X GET "http://localhost:5000/api/movies?status=watched" \
 All API responses follow this consistent format:
 
 ### Success Response
+
 ```json
 {
   "success": true,
@@ -181,6 +202,7 @@ All API responses follow this consistent format:
 ```
 
 ### Error Response
+
 ```json
 {
   "success": false,
@@ -193,6 +215,7 @@ All API responses follow this consistent format:
 ## 🗄️ Database Schema
 
 ### Users Table
+
 ```sql
 - id (UUID, Primary Key)
 - username (String, Unique)
@@ -203,6 +226,7 @@ All API responses follow this consistent format:
 ```
 
 ### Movies Table
+
 ```sql
 - id (UUID, Primary Key)
 - user_id (UUID, Foreign Key → users.id)
@@ -224,7 +248,9 @@ The API uses JWT (JSON Web Tokens) for authentication:
 2. **Refresh Token**: Long-lived token (7 days) for refreshing access tokens
 
 ### Usage
+
 Include the access token in the Authorization header:
+
 ```
 Authorization: Bearer YOUR_ACCESS_TOKEN
 ```
@@ -232,11 +258,13 @@ Authorization: Bearer YOUR_ACCESS_TOKEN
 ## 🎯 TMDB Integration
 
 The API automatically fetches movie posters from The Movie Database (TMDB) when:
+
 - Adding a new movie
 - Updating a movie title
 - Manually refreshing a poster
 
 ### Configuration
+
 1. Get your API key from [TMDB](https://www.themoviedb.org/settings/api)
 2. Add it to your `.env` file as `TMDB_API_KEY`
 3. Poster fetching will work automatically
@@ -244,12 +272,14 @@ The API automatically fetches movie posters from The Movie Database (TMDB) when:
 ## 🧪 Testing
 
 Run the included test script to verify all endpoints:
+
 ```bash
 chmod +x test_api.sh
 ./test_api.sh
 ```
 
 Or test individual endpoints:
+
 ```bash
 # Health check
 curl http://localhost:5000/
@@ -292,6 +322,7 @@ backend/
 ## 🚀 Deployment
 
 ### Environment Variables for Production
+
 ```env
 NODE_ENV=production
 DATABASE_URL=your_production_database_url
@@ -302,6 +333,7 @@ FRONTEND_URL=https://your-frontend-domain.com
 ```
 
 ### Database Migrations in Production
+
 ```bash
 NODE_ENV=production npx knex migrate:latest --knexfile src/knexfile.js
 ```
@@ -316,11 +348,13 @@ NODE_ENV=production npx knex migrate:latest --knexfile src/knexfile.js
 ## 🔧 Development
 
 ### Available Scripts
+
 - `npm start` - Start production server
 - `npm run dev` - Start development server with nodemon
 - `npm test` - Run tests (to be implemented)
 
 ### Database Commands
+
 ```bash
 # Run migrations
 npx knex migrate:latest --knexfile src/knexfile.js
@@ -349,16 +383,19 @@ This project is licensed under the MIT License.
 ### Common Issues
 
 1. **Database Connection Failed**
+
    - Verify your `DATABASE_URL` is correct
    - Ensure your database is running and accessible
    - Check SSL settings for cloud databases
 
 2. **JWT Token Issues**
+
    - Ensure `JWT_SECRET` and `JWT_REFRESH_SECRET` are set
    - Check token expiration times
    - Verify token format in Authorization header
 
 3. **TMDB API Issues**
+
    - Verify your `TMDB_API_KEY` is valid
    - Check API rate limits
    - Poster fetching is optional and won't break functionality

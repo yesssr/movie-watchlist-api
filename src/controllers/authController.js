@@ -1,8 +1,65 @@
+import crypto from "crypto";
 import User from "../models/User.js";
 import JWTUtil from "../utils/jwt.js";
 import { ValidationError, UnauthorizedError } from "../middleware/error.js";
+import GoogleOAuthService from "../services/googleOAuth.js";
+
+const getCookieOptions = () => ({
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+});
+
+const setAuthCookies = (res, accessToken, refreshToken) => {
+  const cookieOptions = getCookieOptions();
+
+  res.cookie("accessToken", accessToken, {
+    ...cookieOptions,
+    maxAge: 60 * 60 * 1000,
+  });
+
+  res.cookie("refreshToken", refreshToken, {
+    ...cookieOptions,
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+};
+
+const getFrontendBaseUrl = () =>
+  (process.env.FRONTEND_URL || "http://localhost:3000").replace(/\/$/, "");
+
+const buildFrontendUrl = (path, params = {}) => {
+  const url = new URL(path, `${getFrontendBaseUrl()}/`);
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value) {
+      url.searchParams.set(key, value);
+    }
+  });
+
+  return url.toString();
+};
 
 class AuthController {
+  static async generateUniqueUsername(seedValue) {
+    const base = seedValue
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]/g, "")
+      .slice(0, 20);
+
+    const sanitizedBase = base.length >= 3 ? base : "user";
+
+    let candidate = sanitizedBase;
+    let suffix = 1;
+
+    while (await User.findByUsername(candidate)) {
+      candidate = `${sanitizedBase}${suffix}`.slice(0, 30);
+      suffix += 1;
+    }
+
+    return candidate;
+  }
+
   static async register(req, res, next) {
     try {
       const { username, email, password } = req.body;
@@ -15,7 +72,7 @@ class AuthController {
       // Validate username format
       if (username.length < 3 || username.length > 30) {
         throw new ValidationError(
-          "Username must be between 3 and 30 characters",
+          "Username must be between 3 and 30 characters"
         );
       }
 
@@ -28,7 +85,7 @@ class AuthController {
       // Validate password strength
       if (password.length < 6) {
         throw new ValidationError(
-          "Password must be at least 6 characters long",
+          "Password must be at least 6 characters long"
         );
       }
 
@@ -61,19 +118,7 @@ class AuthController {
         JWTUtil.generateTokenPair(tokenPayload);
 
       // Set cookies
-      res.cookie("accessToken", accessToken, {
-        httpOnly: true,
-        secure: false, // Allow HTTP in development
-        sameSite: "lax",
-        maxAge: 60 * 60 * 1000, // 1 hour
-      });
-
-      res.cookie("refreshToken", refreshToken, {
-        httpOnly: true,
-        secure: false, // Allow HTTP in development
-        sameSite: "lax",
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      });
+      setAuthCookies(res, accessToken, refreshToken);
 
       res.status(201).json({
         success: true,
@@ -103,16 +148,22 @@ class AuthController {
 
       // Find user by email or username
       const user = await User.findByEmailOrUsername(
-        identifier.trim().toLowerCase(),
+        identifier.trim().toLowerCase()
       );
       if (!user) {
         throw new UnauthorizedError("Invalid credentials");
       }
 
+      if (!user.password) {
+        throw new UnauthorizedError(
+          "This account uses Google Sign-In. Please continue with Google."
+        );
+      }
+
       // Verify password
       const isValidPassword = await User.verifyPassword(
         password,
-        user.password,
+        user.password
       );
       if (!isValidPassword) {
         throw new UnauthorizedError("Invalid credentials");
@@ -129,19 +180,7 @@ class AuthController {
         JWTUtil.generateTokenPair(tokenPayload);
 
       // Set cookies
-      res.cookie("accessToken", accessToken, {
-        httpOnly: true,
-        secure: false, // Allow HTTP in development
-        sameSite: "lax",
-        maxAge: 60 * 60 * 1000, // 1 hour
-      });
-
-      res.cookie("refreshToken", refreshToken, {
-        httpOnly: true,
-        secure: false, // Allow HTTP in development
-        sameSite: "lax",
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      });
+      setAuthCookies(res, accessToken, refreshToken);
 
       res.json({
         success: true,
@@ -189,19 +228,7 @@ class AuthController {
         JWTUtil.generateTokenPair(tokenPayload);
 
       // Set new cookies
-      res.cookie("accessToken", newAccessToken, {
-        httpOnly: true,
-        secure: false, // Allow HTTP in development
-        sameSite: "lax",
-        maxAge: 60 * 60 * 1000, // 1 hour
-      });
-
-      res.cookie("refreshToken", newRefreshToken, {
-        httpOnly: true,
-        secure: false, // Allow HTTP in development
-        sameSite: "lax",
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      });
+      setAuthCookies(res, accessToken, newRefreshToken);
 
       res.json({
         success: true,
@@ -225,9 +252,15 @@ class AuthController {
 
   static async logout(req, res, next) {
     try {
-      // Clear cookies
-      res.clearCookie("accessToken");
-      res.clearCookie("refreshToken");
+      const cookieOptions = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+        path: "/",
+      };
+
+      res.clearCookie("accessToken", cookieOptions);
+      res.clearCookie("refreshToken", cookieOptions);
 
       res.json({
         success: true,
@@ -235,6 +268,117 @@ class AuthController {
       });
     } catch (error) {
       next(error);
+    }
+  }
+
+  static async googleAuth(req, res, next) {
+    try {
+      const state = crypto.randomBytes(24).toString("hex");
+      const googleAuthUrl = GoogleOAuthService.getAuthorizationUrl(state);
+
+      res.cookie("googleOAuthState", state, {
+        ...getCookieOptions(),
+        maxAge: 10 * 60 * 1000,
+      });
+
+      res.redirect(googleAuthUrl);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async googleCallback(req, res) {
+    try {
+      const { code, state, error } = req.query;
+
+      if (error) {
+        throw new UnauthorizedError("Google authentication was cancelled");
+      }
+
+      if (!code || !state) {
+        throw new ValidationError("Missing Google OAuth callback parameters");
+      }
+
+      const cookieState = req.cookies.googleOAuthState;
+
+      if (!cookieState || cookieState !== state) {
+        throw new UnauthorizedError("Invalid OAuth state");
+      }
+
+      res.clearCookie("googleOAuthState", {
+        ...getCookieOptions(),
+        path: "/",
+      });
+
+      const tokenData = await GoogleOAuthService.exchangeCodeForTokens(code);
+      const googleUser = await GoogleOAuthService.getUserInfo(
+        tokenData.access_token
+      );
+
+      if (!googleUser?.email || !googleUser.email_verified) {
+        throw new UnauthorizedError(
+          "Google account email is not available or not verified"
+        );
+      }
+
+      const normalizedEmail = googleUser.email.trim().toLowerCase();
+      let user = await User.findByGoogleId(googleUser.sub);
+
+      if (!user) {
+        const existingUserByEmail = await User.findByEmail(normalizedEmail);
+
+        if (existingUserByEmail) {
+          await User.updateById(existingUserByEmail.id, {
+            oauth_provider: "google",
+            google_id: googleUser.sub,
+            avatar_url: googleUser.picture || null,
+          });
+
+          user = await User.findById(existingUserByEmail.id);
+        } else {
+          const usernameSeed =
+            googleUser.name || normalizedEmail.split("@")[0] || "user";
+          const username = await AuthController.generateUniqueUsername(
+            usernameSeed
+          );
+
+          user = await User.createOAuthUser({
+            username,
+            email: normalizedEmail,
+            googleId: googleUser.sub,
+            avatarUrl: googleUser.picture || null,
+          });
+        }
+      } else {
+        await User.updateById(user.id, {
+          avatar_url: googleUser.picture || null,
+        });
+
+        user = await User.findById(user.id);
+      }
+
+      if (!user) {
+        throw new UnauthorizedError("Unable to complete Google authentication");
+      }
+
+      const tokenPayload = {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+      };
+
+      const { accessToken, refreshToken } =
+        JWTUtil.generateTokenPair(tokenPayload);
+
+      setAuthCookies(res, accessToken, refreshToken);
+
+      return res.redirect(buildFrontendUrl("/dashboard"));
+    } catch (error) {
+      return res.redirect(
+        buildFrontendUrl("/login", {
+          oauthError: error.message || "Google authentication failed",
+        })
+      );
     }
   }
 
@@ -272,13 +416,13 @@ class AuthController {
       if (username !== undefined) {
         if (username.length < 3 || username.length > 30) {
           throw new ValidationError(
-            "Username must be between 3 and 30 characters",
+            "Username must be between 3 and 30 characters"
           );
         }
 
         // Check if username is already taken by another user
         const existingUser = await User.findByUsername(
-          username.trim().toLowerCase(),
+          username.trim().toLowerCase()
         );
         if (existingUser && existingUser.id !== req.user.id) {
           throw new ValidationError("Username already taken");
@@ -332,13 +476,13 @@ class AuthController {
 
       if (!currentPassword || !newPassword) {
         throw new ValidationError(
-          "Current password and new password are required",
+          "Current password and new password are required"
         );
       }
 
       if (newPassword.length < 6) {
         throw new ValidationError(
-          "New password must be at least 6 characters long",
+          "New password must be at least 6 characters long"
         );
       }
 
@@ -354,7 +498,7 @@ class AuthController {
       // Verify current password
       const isValidPassword = await User.verifyPassword(
         currentPassword,
-        userWithPassword.password,
+        userWithPassword.password
       );
       if (!isValidPassword) {
         throw new UnauthorizedError("Current password is incorrect");

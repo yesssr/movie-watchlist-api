@@ -17,6 +17,21 @@ class User {
     return user;
   }
 
+  static async createOAuthUser({ username, email, googleId, avatarUrl }) {
+    const [user] = await db("users")
+      .insert({
+        username,
+        email,
+        password: null,
+        oauth_provider: "google",
+        google_id: googleId,
+        avatar_url: avatarUrl || null,
+      })
+      .returning(["id", "username", "email", "created_at"]);
+
+    return user;
+  }
+
   static async findById(id) {
     const user = await db("users")
       .select(["id", "username", "email", "created_at"])
@@ -28,7 +43,16 @@ class User {
 
   static async findByEmail(email) {
     const user = await db("users")
-      .select(["id", "username", "email", "password", "created_at"])
+      .select([
+        "id",
+        "username",
+        "email",
+        "password",
+        "oauth_provider",
+        "google_id",
+        "avatar_url",
+        "created_at",
+      ])
       .where({ email })
       .first();
 
@@ -37,7 +61,16 @@ class User {
 
   static async findByUsername(username) {
     const user = await db("users")
-      .select(["id", "username", "email", "password", "created_at"])
+      .select([
+        "id",
+        "username",
+        "email",
+        "password",
+        "oauth_provider",
+        "google_id",
+        "avatar_url",
+        "created_at",
+      ])
       .where({ username })
       .first();
 
@@ -46,9 +79,36 @@ class User {
 
   static async findByEmailOrUsername(identifier) {
     const user = await db("users")
-      .select(["id", "username", "email", "password", "created_at"])
+      .select([
+        "id",
+        "username",
+        "email",
+        "password",
+        "oauth_provider",
+        "google_id",
+        "avatar_url",
+        "created_at",
+      ])
       .where({ email: identifier })
       .orWhere({ username: identifier })
+      .first();
+
+    return user;
+  }
+
+  static async findByGoogleId(googleId) {
+    const user = await db("users")
+      .select([
+        "id",
+        "username",
+        "email",
+        "password",
+        "oauth_provider",
+        "google_id",
+        "avatar_url",
+        "created_at",
+      ])
+      .where({ google_id: googleId })
       .first();
 
     return user;

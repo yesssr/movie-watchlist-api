@@ -16,18 +16,33 @@ import { errorHandler, notFoundHandler } from "./middleware/error.js";
 const app = express();
 
 // CORS configuration
+// Allowed origins for CORS
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+  "https://localhost:3000",
+  "https://frontend-7so6vlk8y-yassures-projects.vercel.app",
+  "https://movie-watchlist-frontend.vercel.app",
+];
+
+// Dynamic CORS configuration - echo specific origin for credentials
 const corsOptions = {
-  origin: [
-    process.env.FRONTEND_URL || "http://localhost:3000",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://localhost:3000",
-    "https://movie-watchlist-frontend.vercel.app",
-    "https://movie-watchlist-frontend-*.vercel.app",
-    /https:\/\/.*\.vercel\.app$/,
-    /https:\/\/.*\.netlify\.app$/,
-    /https:\/\/.*\.fly\.dev$/,
-  ],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+
+    // Check if origin is in allowed list or matches vercel pattern
+    if (
+      allowedOrigins.includes(origin) ||
+      /https:\/\/.*\.vercel\.app$/.test(origin)
+    ) {
+      return callback(null, true);
+    }
+
+    // Reject other origins
+    const msg = `CORS policy violation: Origin ${origin} not allowed.`;
+    return callback(new Error(msg), false);
+  },
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],

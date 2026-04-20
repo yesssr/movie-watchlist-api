@@ -10,6 +10,8 @@ const router = express.Router();
 // Public routes
 router.post("/register", AuthController.register);
 router.post("/login", AuthController.login);
+router.get("/google", AuthController.googleAuth);
+router.get("/google/callback", AuthController.googleCallback);
 router.post("/refresh", AuthController.refreshToken);
 router.post("/logout", AuthController.logout);
 
