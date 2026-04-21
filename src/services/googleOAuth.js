@@ -1,17 +1,20 @@
+import dotenv from "dotenv";
 import axios from "axios";
 import { ValidationError } from "../middleware/error.js";
+
+dotenv.config();
 
 const GOOGLE_AUTH_BASE_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
+const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL;
 
 class GoogleOAuthService {
   static validateConfig() {
-    if (
-      !process.env.GOOGLE_CLIENT_ID ||
-      !process.env.GOOGLE_CLIENT_SECRET ||
-      !process.env.GOOGLE_CALLBACK_URL
-    ) {
+    console.log(CLIENT_ID, CLIENT_SECRET, CALLBACK_URL);
+    if (!CLIENT_ID || !CLIENT_SECRET || !CALLBACK_URL) {
       throw new ValidationError(
         "Google OAuth is not configured. Please set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_CALLBACK_URL"
       );
@@ -22,8 +25,8 @@ class GoogleOAuthService {
     this.validateConfig();
 
     const params = new URLSearchParams({
-      client_id: process.env.GOOGLE_CLIENT_ID,
-      redirect_uri: process.env.GOOGLE_CALLBACK_URL,
+      client_id: CLIENT_ID,
+      redirect_uri: CALLBACK_URL,
       response_type: "code",
       scope: "openid email profile",
       access_type: "offline",
@@ -39,9 +42,9 @@ class GoogleOAuthService {
 
     const payload = new URLSearchParams({
       code,
-      client_id: process.env.GOOGLE_CLIENT_ID,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: process.env.GOOGLE_CALLBACK_URL,
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
+      redirect_uri: CALLBACK_URL,
       grant_type: "authorization_code",
     });
 

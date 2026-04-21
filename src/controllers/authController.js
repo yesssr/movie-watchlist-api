@@ -1,8 +1,10 @@
 import crypto from "crypto";
+import dotenv from "dotenv";
 import User from "../models/User.js";
 import JWTUtil from "../utils/jwt.js";
 import { ValidationError, UnauthorizedError } from "../middleware/error.js";
 import GoogleOAuthService from "../services/googleOAuth.js";
+dotenv.config();
 
 const getCookieOptions = () => ({
   httpOnly: true,
