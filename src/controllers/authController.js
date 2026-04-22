@@ -17,11 +17,13 @@ const setAuthCookies = (res, accessToken, refreshToken) => {
 
   res.cookie("accessToken", accessToken, {
     ...cookieOptions,
+    path: "/",
     maxAge: 60 * 60 * 1000,
   });
 
   res.cookie("refreshToken", refreshToken, {
     ...cookieOptions,
+    path: "/",
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 };
@@ -31,6 +33,21 @@ const getFrontendBaseUrl = () =>
 
 const buildFrontendUrl = (path, params = {}) => {
   const url = new URL(path, `${getFrontendBaseUrl()}/`);
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value) {
+      url.searchParams.set(key, value);
+    }
+  });
+
+  return url.toString();
+};
+
+const getMobileDeepLinkBaseUrl = () =>
+  (process.env.MOBILE_DEEP_LINK_URL || "mwatchlist://auth/callback").trim();
+
+const buildMobileDeepLinkUrl = (params = {}) => {
+  const url = new URL(getMobileDeepLinkBaseUrl());
 
   Object.entries(params).forEach(([key, value]) => {
     if (value) {
@@ -132,6 +149,8 @@ class AuthController {
             email: newUser.email,
             createdAt: newUser.created_at,
           },
+          access_token: accessToken,
+          refresh_token: refreshToken,
         },
       });
     } catch (error) {
@@ -194,6 +213,8 @@ class AuthController {
             email: user.email,
             createdAt: user.created_at,
           },
+          access_token: accessToken,
+          refresh_token: refreshToken,
         },
       });
     } catch (error) {
@@ -203,8 +224,8 @@ class AuthController {
 
   static async refreshToken(req, res, next) {
     try {
-      // Get refresh token from cookie
-      const refreshToken = req.cookies.refreshToken;
+      // Prefer cookie for web, support body token for mobile clients.
+      const refreshToken = req.cookies.refreshToken || req.body?.refreshToken;
 
       if (!refreshToken) {
         throw new UnauthorizedError("Refresh token is required");
@@ -241,6 +262,8 @@ class AuthController {
             username: user.username,
             email: user.email,
           },
+          access_token: accessToken,
+          refresh_token: newRefreshToken,
         },
       });
     } catch (error) {
@@ -277,9 +300,17 @@ class AuthController {
     try {
       const state = crypto.randomBytes(24).toString("hex");
       const googleAuthUrl = GoogleOAuthService.getAuthorizationUrl(state);
+      const clientType = req.query.client === "mobile" ? "mobile" : "web";
 
       res.cookie("googleOAuthState", state, {
         ...getCookieOptions(),
+        path: "/",
+        maxAge: 10 * 60 * 1000,
+      });
+
+      res.cookie("googleOAuthClient", clientType, {
+        ...getCookieOptions(),
+        path: "/",
         maxAge: 10 * 60 * 1000,
       });
 
@@ -290,6 +321,12 @@ class AuthController {
   }
 
   static async googleCallback(req, res) {
+    const clientType =
+      req.query.client === "mobile" ||
+      req.cookies.googleOAuthClient === "mobile"
+        ? "mobile"
+        : "web";
+
     try {
       const { code, state, error } = req.query;
 
@@ -308,6 +345,11 @@ class AuthController {
       }
 
       res.clearCookie("googleOAuthState", {
+        ...getCookieOptions(),
+        path: "/",
+      });
+
+      res.clearCookie("googleOAuthClient", {
         ...getCookieOptions(),
         path: "/",
       });
@@ -374,8 +416,25 @@ class AuthController {
 
       setAuthCookies(res, accessToken, refreshToken);
 
+      if (clientType === "mobile") {
+        return res.redirect(
+          buildMobileDeepLinkUrl({
+            accessToken,
+            refreshToken,
+          })
+        );
+      }
+
       return res.redirect(buildFrontendUrl("/dashboard"));
     } catch (error) {
+      if (clientType === "mobile") {
+        return res.redirect(
+          buildMobileDeepLinkUrl({
+            oauthError: error.message || "Google authentication failed",
+          })
+        );
+      }
+
       return res.redirect(
         buildFrontendUrl("/login", {
           oauthError: error.message || "Google authentication failed",
